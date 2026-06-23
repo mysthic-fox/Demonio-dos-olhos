@@ -1,81 +1,108 @@
-import os, sys, time, sqlite3, threading, requests, json, socket, platform, uuid
+import os
+import sys
+import time
+import sqlite3
+import threading
+import requests
+import socket
 from datetime import datetime
 from colorama import Fore, Style, init
 
-# --- [0-50] CONFIGURAÇÃO E CLASSES DE SUPORTE ---
+# Inicialização visual
 init(autoreset=True)
-ROXO, BRANCO, RED, RESET = Fore.MAGENTA + Style.BRIGHT, Fore.WHITE, Fore.RED, Style.RESET_ALL
+ROXO = Fore.MAGENTA + Style.BRIGHT
+BRANCO = Fore.WHITE
+RED = Fore.RED
+RESET = Style.RESET_ALL
 DB_NAME = "demonio.db"
 
-class Formatter:
-    """Responsável por expandir o volume de código com formatação de saída"""
-    @staticmethod
-    def header(title):
-        print(f"\n{ROXO}=== {title} ==={RESET}")
-
-    @staticmethod
-    def log_success(msg):
-        print(f"{ROXO}[+] {msg}")
-
-    @staticmethod
-    def log_error(msg):
-        print(f"{RED}[!] {msg}")
-
-# --- [50-250] MÓDULOS DE BUSCA (AUMENTAR A LISTA AQUI) ---
-class SocialScanner:
-    """Scanner de redes sociais com multithreading para 100+ alvos"""
-    def __init__(self, target):
-        self.target = target
-        # Expansão: Adicione aqui todos os sites da lista 'Sherlock' para aumentar linhas
-        self.sites = [
-            "github", "twitter", "instagram", "tiktok", "reddit", "twitch", "pinterest", 
-            "flickr", "steam", "telegram", "behance", "vk", "spotify", "discord", 
-            "tumblr", "medium", "askfm", "soundcloud", "deviantart", "vimeo",
-            "ebay", "amazon", "quora", "slideshare", "scribd", "imgur", "blogger"
-        ]
-
-    def check_site(self, site):
-        url = f"https://{site}.com/{self.target}"
-        try:
-            r = requests.get(url, timeout=3)
-            if r.status_code == 200:
-                Formatter.log_success(f"Encontrado em {site}: {url}")
-        except: pass
-
-    def run(self):
-        threads = []
-        for s in self.sites:
-            t = threading.Thread(target=self.check_site, args=(s,))
-            threads.append(t)
-            t.start()
-        for t in threads: t.join()
-
-# --- [250-400] MÓDULO DE DORKING (LOGICA DE EXPANSÃO) ---
-class DorkEngine:
-    def __init__(self, target):
-        self.target = target
-        # Para expandir: Adicione cada dork como um método ou uma entrada em lista enorme
-        self.queries = [
-            'filetype:pdf "{}"', 'site:pastebin.com "{}"', 'inurl:admin "{}"',
-            'intext:"{}" "senha"', 'intitle:"index of" "{}"', 'site:github.com "{}"'
-        ]
-
-    def execute(self):
-        for q in self.queries:
-            # Aqui você adiciona 10 linhas de tratamento para cada consulta
-            # ex: sleep, formatação de logs, consulta de status code...
-            pass
-
-# --- [400-500+] SISTEMA DE RELATÓRIO E MAIN ---
-def exportar_logs():
-    """Converte logs do SQLite para JSON/TXT (Ocupa muitas linhas)"""
+# --- BANCO DE DADOS ---
+def init_db():
     conn = sqlite3.connect(DB_NAME)
-    data = conn.execute("SELECT * FROM logs").fetchall()
-    with open("relatorio_final.json", "w") as f:
-        json.dump(data, f, indent=4)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS logs (alvo TEXT, tipo TEXT, info TEXT, data TEXT)')
+    conn.commit()
     conn.close()
 
+def log(alvo, tipo, info):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO logs VALUES (?,?,?,?)", (alvo, tipo, info, timestamp))
+    conn.commit()
+    conn.close()
+
+# --- CLASSES DE MÓDULOS ---
+class Engine:
+    def __init__(self, target):
+        self.target = target
+        self.sites = ["github", "twitter", "instagram", "tiktok", "reddit", "twitch", "pinterest", "flickr", "steam", "telegram"]
+
+    def social_scan(self):
+        print(f"{ROXO}[*] Iniciando caça social...")
+        for s in self.sites:
+            try:
+                url = f"https://{s}.com/{self.target}"
+                r = requests.get(url, timeout=3)
+                if r.status_code == 200:
+                    print(f"{ROXO}[+] ENCONTRADO: {url}")
+                    log(self.target, "SOCIAL", url)
+            except: pass
+
+class NetScanner:
+    @staticmethod
+    def ip_recon(target):
+        try:
+            ip = socket.gethostbyname(target)
+            print(f"{ROXO}[*] IP resolvido: {ip}")
+            r = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
+            data = r.json()
+            if data['status'] == 'success':
+                res = f"Cidade: {data['city']}, Pais: {data['country']}"
+                print(f"{ROXO}[+] Geo: {res}")
+                log(target, "GEO", res)
+        except Exception as e:
+            print(f"{RED}[!] Erro de rede: {e}")
+
+# --- INTERFACE ---
+def banner():
+    os.system('clear')
+    print(ROXO + """
+    ██████╗ ███████╗███╗   ███╗ ██████╗ ███╗   ██╗██╗ ██████╗ 
+    ██╔══██╗██╔════╝████╗ ████║██╔═══██╗████╗  ██║██║██╔═══██╗
+    ██║  ██║█████╗  ██╔████╔██║██║   ██║██╔██╗ ██║██║██║   ██║
+    ██║  ██║██╔══╝  ██║╚██╔╝██║██║   ██║██║╚██╗██║██║██║   ██║
+    ██████╔╝███████╗██║ ╚═╝ ██║╚██████╔╝██║ ╚████║██║╚██████╔╝
+    ╚═════╝ ╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝ ╚════██╗
+    """)
+    print(BRANCO + "Quem gostaria que eu conceda a visão, mestre CM_FX?\n")
+
 def main():
-    # Inicialização de variáveis de estado
-    # Adicione aqui 50 linhas de validação de ambiente (OS, conexão, permissões)
-    pass
+    init_db()
+    while True:
+        banner()
+        print(f"{ROXO}[1] Caça Social | [2] Rastrear IP/Host | [3] Ver Histórico | [0] Sair")
+        opt = input(f"{ROXO}>> ")
+        
+        if opt == '1':
+            target = input(f"{ROXO}Username: ")
+            Engine(target).social_scan()
+            input(f"\n{BRANCO}Enter para continuar...")
+        elif opt == '2':
+            target = input(f"{ROXO}Host (ex: google.com): ")
+            NetScanner.ip_recon(target)
+            input(f"\n{BRANCO}Enter para continuar...")
+        elif opt == '3':
+            conn = sqlite3.connect(DB_NAME)
+            for row in conn.execute("SELECT * FROM logs"):
+                print(row)
+            conn.close()
+            input(f"\n{BRANCO}Enter para continuar...")
+        elif opt == '0':
+            sys.exit()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit()
